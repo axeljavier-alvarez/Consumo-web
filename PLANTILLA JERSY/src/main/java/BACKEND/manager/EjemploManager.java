@@ -17,80 +17,83 @@ import BACKEND.utils.Config;
 import BACKEND.utils.ConnectionsPool;
 import BACKEND.utils.jsonResult;
 import oracle.jdbc.OracleTypes;
+import java.sql.Types;
 
 public class EjemploManager {
-	String SCHEMA = new Config().getDBSchema();
+        String SCHEMA = "SYSTEM";
 	
-	public List<Map<String, Object>> ObtenerCatalogoEjemplo() throws Exception{
-        List<Map<String, Object>> salida = new ArrayList<Map<String, Object>>();
-       
-        ConnectionsPool c=new ConnectionsPool();
-        Connection conn=c.conectar();
-               
-         // Prepare a PL/SQL call
-        CallableStatement call =
-        conn.prepareCall ("call "+SCHEMA+".PKG_EJEMPLOS.OBTENER_DEPARTAMENTOS(?)");
-        
-        // Parametros
-        call.registerOutParameter ("p_cursor", OracleTypes.CURSOR);
-        call.execute ();
-        ResultSet rset = (ResultSet)call.getObject ("p_cursor");
-        
-        // Dump the cursor
+	public List<Map<String, Object>> ObtenerCatalogoEjemplo() throws Exception {
+        System.out.println("SCHEMA utilizado: " + SCHEMA);
+
+        List<Map<String, Object>> salida = new ArrayList<>();
+
+        ConnectionsPool c = new ConnectionsPool();
+        Connection conn = c.conectar();
+
+        // Preparar la llamada al procedimiento almacenado
+        CallableStatement call = conn.prepareCall(
+            "{ call " + SCHEMA + ".PKG_CATALOGOS.PROC_GET_SUCURSALES(?) }"
+        );
+
+        // ✅ Registrar parámetro OUT por posición (índice 1)
+        call.registerOutParameter(1, OracleTypes.CURSOR);
+
+        // Ejecutar
+        call.execute();
+
+        // ✅ Obtener resultado por índice
+        ResultSet rset = (ResultSet) call.getObject(1);
+
+        // Procesar el ResultSet
         ResultSetMetaData meta = rset.getMetaData();
-   
-	    while (rset.next()) {
-	    Map<String, Object> map = new HashMap<String, Object>();
-	    for (int i = 1; i <= meta.getColumnCount(); i++) {
-	        String key = meta.getColumnName(i).toString();
-	        String value = Objects.toString(rset.getString(key), "");
-	        map.put(key, value);
-	    }     
-	    salida.add(map);
-	    }
-    // Close all the resources
+        while (rset.next()) {
+            Map<String, Object> map = new HashMap<>();
+            for (int i = 1; i <= meta.getColumnCount(); i++) {
+                String key = meta.getColumnName(i);
+                String value = Objects.toString(rset.getString(key), "");
+                map.put(key, value);
+            }
+            salida.add(map);
+        }
+
+        // Cerrar recursos
+        rset.close();
+        call.close();
+        conn.close();
+
+        return salida;
+    
+	}
+	
+        /* SEGUNDA FUNCION */
+        public List<Map<String, Object>> ObtenerSucursales() throws Exception {
+    List<Map<String, Object>> salida = new ArrayList<>();
+    ConnectionsPool c = new ConnectionsPool();
+    Connection conn = c.conectar();
+
+    CallableStatement call = conn.prepareCall("{ call SYSTEM.PKG_CATALOGOS.PROC_GET_SUCURSALES(?) }");
+    call.registerOutParameter(1, OracleTypes.CURSOR);
+    call.execute();
+
+    ResultSet rset = (ResultSet) call.getObject(1);
+    ResultSetMetaData meta = rset.getMetaData();
+
+    while (rset.next()) {
+        Map<String, Object> map = new HashMap<>();
+        for (int i = 1; i <= meta.getColumnCount(); i++) {
+            map.put(meta.getColumnName(i), rset.getObject(i));
+        }
+        salida.add(map);
+    }
+
     rset.close();
     call.close();
     conn.close();
-   
+
     return salida;
-	}
-	
-        public List<Map<String, Object>> ObtenerSucursales() throws Exception{
-        List<Map<String, Object>> salida = new ArrayList<Map<String, Object>>();
-       
-        ConnectionsPool c=new ConnectionsPool();
-        Connection conn=c.conectar();
-               
-         // Prepare a PL/SQL call
-        CallableStatement call =
-        conn.prepareCall ("call "+SCHEMA+".PKG_EJEMPLOS.OBTENER_SUCURSALES(?)");
-        
-        // Parametros
-        call.registerOutParameter ("p_cursor", OracleTypes.CURSOR);
-        call.execute ();
-        ResultSet rset = (ResultSet)call.getObject ("p_cursor");
-        
-        // Dump the cursor
-        ResultSetMetaData meta = rset.getMetaData();
-   
-	    while (rset.next()) {
-	    Map<String, Object> map = new HashMap<String, Object>();
-	    for (int i = 1; i <= meta.getColumnCount(); i++) {
-	        String key = meta.getColumnName(i).toString();
-	        String value = Objects.toString(rset.getString(key), "");
-	        map.put(key, value);
-	    }     
-	    salida.add(map);
-	    }
-    // Close all the resources
-    rset.close();
-    call.close();
-    conn.close();
-   
-    return salida;
-	}
-        
+}
+
+        /* TERCERA FUNCION */
 	public jsonResult AgregarEjemplo(Ejemplo item) throws Exception{
 		jsonResult salida = new jsonResult();
 		
@@ -123,39 +126,26 @@ public class EjemploManager {
 	    return salida;
 	}
 	
-        
-        public jsonResult AgregarSucursal(Sucursal item) throws Exception{
-		jsonResult salida = new jsonResult();
-		
-		ConnectionsPool c=new ConnectionsPool();
-		Connection conn=c.conectar();
-		 // Prepare a PL/SQL call
-	    CallableStatement call =
-	    conn.prepareCall ("call "+SCHEMA+".PKG_EJEMPLOs.AGREGAR_SUCURSAL(?,?,?,?,?,?)");
+        /* CUARTA FUNCION */
+        public jsonResult AgregarSucursal(Sucursal item) throws Exception {
+    ConnectionsPool c = new ConnectionsPool();
+    Connection conn = c.conectar();
 
-	    // Parametros
-	    call.setString("p_id_sucursal", item.ID_SUCURSAL);
-	    call.setString("p_nombre", item.NOMBRE);
-	    call.setString("p_direccion", item.DIRECCION);
-             call.setString("p_estado", item.ESTADO);
-	    call.registerOutParameter ("p_id_salida", OracleTypes.NUMBER);
-	    call.registerOutParameter ("p_msj", OracleTypes.VARCHAR);
-	    call.execute ();
-	  
-	    int  id = call.getInt("p_id_salida");
-	    String  msj = call.getString("p_msj");
-	    salida.id=id;
-	    salida.msj=msj;
-	    if(salida.id!=-1){
-	    	salida.result="OK";
-	    }
-	    
-	    // Close all the resources
-	    call.close();
-	    conn.close();
-	    
-	    return salida;
-	}
+    CallableStatement call = conn.prepareCall("{ call SYSTEM.PKG_CATALOGOS.PROC_INSERT_SUCURSAL(?, ?, ?, ?) }");
+    call.setString(1, item.NOMBRE);
+    call.setString(2, item.DIRECCION);
+    call.setString(3, item.IP);
+    call.registerOutParameter(4, Types.VARCHAR);
+    call.execute();
+
+    String mensaje = call.getString(4);
+
+    call.close();
+    conn.close();
+
+    return new jsonResult(1, mensaje, null);
+}
+
 	
 	/*public jsonResult AgregarEjemploTransaccional(Departamento item) throws Exception {
         jsonResult salida = new jsonResult();
